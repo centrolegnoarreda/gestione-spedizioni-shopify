@@ -119,6 +119,11 @@ function buildDescriptions(normalizedVariants) {
   const slowestBackorderVariant = [...backorderVariants].sort(
     (a, b) => b.leadTimeMaxDays - a.leadTimeMaxDays
   )[0];
+  const slowestDeliveryVariant = [...normalizedVariants]
+    .filter((v) => v.hasLeadTimeText)
+    .sort((a, b) => b.leadTimeMaxDays - a.leadTimeMaxDays)[0];
+  const deliveryLeadTimeText =
+    slowestDeliveryVariant?.leadTimeText || "1-2 giorni lavorativi";
 
   const inStockQty = totalQuantity(inStockVariants);
   const backorderQty = totalQuantity(backorderVariants);
@@ -182,7 +187,7 @@ function buildDescriptions(normalizedVariants) {
   if (allInStock) {
     trasportoDescription =
       `Ti contatteremo per concordare insieme data e orario del servizio richiesto.\n` +
-      `Tempo stimato: 1-2 giorni lavorativi.\n` +
+      `Tempo stimato: ${deliveryLeadTimeText}.\n` +
       `Prodotti disponibili subito: ${inStockList}.`;
   } else if (slowestBackorderVariant) {
     trasportoDescription =
@@ -338,6 +343,7 @@ export async function action({ request }) {
         normalizedVariants = variants.flatMap((variant) => {
           const inventoryQuantity = Number(variant.inventoryQuantity ?? 0);
           const ordinabile = variant?.metafield?.value === "true";
+          const hasLeadTimeText = Boolean(variant?.leadTimeText?.value);
           const leadTimeText = variant?.leadTimeText?.value || "Tempi da confermare";
           const leadTimeMaxDays = Number(variant?.leadTimeMaxDays?.value || 0);
 
@@ -359,6 +365,7 @@ export async function action({ request }) {
             quantity,
             inventoryQuantity,
             ordinabile,
+            hasLeadTimeText,
             leadTimeText,
             leadTimeMaxDays,
             disponibileSubito,
