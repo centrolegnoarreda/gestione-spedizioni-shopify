@@ -335,15 +335,11 @@ export async function action({ request }) {
           })
         );
 
-        normalizedVariants = variants.map((variant) => {
+        normalizedVariants = variants.flatMap((variant) => {
           const inventoryQuantity = Number(variant.inventoryQuantity ?? 0);
           const ordinabile = variant?.metafield?.value === "true";
           const leadTimeText = variant?.leadTimeText?.value || "Tempi da confermare";
           const leadTimeMaxDays = Number(variant?.leadTimeMaxDays?.value || 0);
-
-          const disponibileSubito = inventoryQuantity > 0;
-          const suOrdinazione = inventoryQuantity <= 0 && ordinabile;
-          const acquistabile = disponibileSubito || suOrdinazione;
 
           const cartItem = itemMap.get(variant.id);
           const quantity = Number(cartItem?.quantity || 1);
@@ -353,7 +349,11 @@ export async function action({ request }) {
               ? `${variant.product.title} - ${variant.title}`
               : variant?.product?.title || variant.title || "Prodotto";
 
-          return {
+          const buildNormalizedVariant = ({
+            quantity,
+            disponibileSubito,
+            suOrdinazione,
+          }) => ({
             id: variant.id,
             productTitle,
             quantity,
@@ -363,8 +363,44 @@ export async function action({ request }) {
             leadTimeMaxDays,
             disponibileSubito,
             suOrdinazione,
-            acquistabile,
-          };
+            acquistabile: disponibileSubito || suOrdinazione,
+          });
+
+          const availableQuantity = Math.min(Math.max(inventoryQuantity, 0), quantity);
+          const missingQuantity = Math.max(quantity - availableQuantity, 0);
+
+          if (missingQuantity === 0) {
+            return [
+              buildNormalizedVariant({
+                quantity,
+                disponibileSubito: true,
+                suOrdinazione: false,
+              }),
+            ];
+          }
+
+          if (availableQuantity > 0 && ordinabile) {
+            return [
+              buildNormalizedVariant({
+                quantity: availableQuantity,
+                disponibileSubito: true,
+                suOrdinazione: false,
+              }),
+              buildNormalizedVariant({
+                quantity: missingQuantity,
+                disponibileSubito: false,
+                suOrdinazione: true,
+              }),
+            ];
+          }
+
+          return [
+            buildNormalizedVariant({
+              quantity,
+              disponibileSubito: false,
+              suOrdinazione: ordinabile,
+            }),
+          ];
         });
 
         const allPurchasable = normalizedVariants.every((v) => v.acquistabile);
